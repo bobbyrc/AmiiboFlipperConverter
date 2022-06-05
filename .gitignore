@@ -1,2 +1,4 @@
 .DS_Store
 .idea
+src/raw_amiibos/
+src/nfcs/
