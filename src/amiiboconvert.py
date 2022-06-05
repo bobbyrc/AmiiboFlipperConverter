@@ -24,6 +24,7 @@ def write_output(name: str, assemble: str, out_dir: str):
     :param assemble: The converted flipper-compatible contents
     :param out_dir: The directory to place Foo.nfc in
     """
+    os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, f"{name}.nfc"), "wt") as f:
         f.write(assemble)
 
@@ -136,24 +137,43 @@ def convert_file(input_path: str, output_path: str):
         logging.info(f"{input_path} doesn't seem like a relevant file, skipping")
 
 
-def process(path: str, output_path: str):
+def getOutputPath(path: str, original_input_path: str, output_path: str, copy_directory_structure: bool):
+    if copy_directory_structure:
+        path_directory = os.path.dirname(path)
+        path_string = str(path_directory).replace(str(original_input_path), str(output_path), 1)
+        return pathlib.Path(path_string)
+    return output_path
+
+
+def process(path: str, output_path: str, original_input_path: str, copy_directory_structure: bool):
     """
     Process an input file, or walk through an input directory and process every matching .bin file therein
     :param path: Path to a single file or a directory containing one or more .bin files
     :param output_path: The base directory to output to
     """
+    processed_output_path = getOutputPath(path, original_input_path, output_path, copy_directory_structure)
     if os.path.isfile(path):
-        convert_file(path, output_path)
+        convert_file(path, processed_output_path)
     else:
         for filename in os.listdir(path):
             new_path = os.path.join(path, filename)
             logging.debug(f"Current file: {filename}; Current path: {new_path}")
 
             if os.path.isfile(path):
-                convert_file(path, output_path)
+                convert_file(path, processed_output_path)
             else:
                 logging.debug(f"Recursing into: {new_path}")
-                process(new_path, output_path)
+                process(new_path, output_path, original_input_path, copy_directory_structure)
+
+
+def str_to_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in {'false', 'f', '0', 'no', 'n'}:
+        return False
+    elif value.lower() in {'true', 't', '1', 'yes', 'y'}:
+        return True
+    raise ValueError(f'{value} is not a valid boolean value')
 
 
 def get_args():
@@ -179,6 +199,15 @@ def get_args():
         action="count",
         default=0,
         help="Show extra info: pass -v to see what's going on, pass -vv to get useful debug info",
+    )
+    parser.add_argument(
+        "-p",
+        "--preserve-directories",
+        type=str_to_bool,
+        nargs='?',
+        const=True,
+        default=False,
+        help="Copy the directory structure from the input. If this is not passed, all Amiibo will be placed in a single folder after being processed.",
     )
     args = parser.parse_args()
     if args.verbose >= 2:
@@ -215,7 +244,7 @@ def main():
     os.makedirs(args.output_path, exist_ok=True)
 
     logging.debug(f"input: {args.input_path}, output: {args.output_path}")
-    process(args.input_path, args.output_path)
+    process(args.input_path, args.output_path, args.input_path, args.preserve_directories)
 
 
 if __name__ == "__main__":
